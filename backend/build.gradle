@@ -1,0 +1,33 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
+}
+
+group = 'com.toolhub'
+version = '1.0.0'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'io.vertx:vertx-core:4.5.7'
+    implementation 'io.vertx:vertx-web:4.5.7'
+    implementation 'io.vertx:vertx-web-client:4.5.7'
+    implementation 'org.slf4j:slf4j-api:2.0.9'
+    implementation 'org.slf4j:slf4j-simple:2.0.9'
+    implementation 'com.auth0:java-jwt:4.4.0'
+    implementation 'io.github.cdimascio:java-dotenv:5.2.2'
+
+    implementation 'org.yaml:snakeyaml:2.2'
+}
+
+application {
+    mainClass = 'com.toolhub.Main'
+}

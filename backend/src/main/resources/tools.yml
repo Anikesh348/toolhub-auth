@@ -1,0 +1,14 @@
+tools: 
+  dozzle:
+    host: logs.hostingfrompurva.xyz
+    target: http://localhost:9999
+    auth:
+      required: true
+      role: admin
+
+  netdata:
+    host: metrics.hostingfrompurva.xyz
+    target: http://localhost:19999
+    auth:
+      required: true
+      role: admin

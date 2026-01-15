@@ -1,0 +1,16 @@
+
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: auth_server_backend
+    ports:
+      - "8082:8082"
+    restart: always
+  frontend:
+    build:
+      context: ./frontend/toolhub-login
+    container_name: auth_server_frontend
+    ports:
+     - "3002:3002"
+    restart: always
