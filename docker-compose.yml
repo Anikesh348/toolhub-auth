@@ -12,5 +12,5 @@ services:
       context: ./frontend/toolhub-login
     container_name: auth_server_frontend
     ports:
-     - "3002:3002"
+     - "3003:3003"
     restart: always
