@@ -8,6 +8,11 @@ import io.vertx.ext.web.RoutingContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
+
 public class ClerkAuthHandler implements Handler<RoutingContext> {
 
         private static final Logger log = LoggerFactory.getLogger(ClerkAuthHandler.class);
@@ -24,22 +29,14 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
                 ToolPolicy policy = ctx.get("policy");
                 String path = ctx.request().path();
 
-                // 1️⃣ Allow internal paths early (API / assets / ws)
+                // 1️⃣ Allow internal paths early
                 if (policy.isPathAllowed(path)) {
-                        log.info(
-                                        "Path allowed without auth [host={}, path={}]",
-                                        ctx.request().host(),
-                                        path);
                         ctx.next();
                         return;
                 }
 
                 // 2️⃣ Tool does not require authentication
                 if (!policy.authRequired) {
-                        log.debug(
-                                        "Auth not required [host={}, path={}]",
-                                        ctx.request().host(),
-                                        path);
                         ctx.next();
                         return;
                 }
@@ -47,7 +44,7 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
                 String token = null;
                 String tokenSource = null;
 
-                // 3️⃣ Authorization header (preferred)
+                // 3️⃣ Authorization header
                 String authHeader = ctx.request().getHeader("Authorization");
                 if (authHeader != null && authHeader.startsWith("Bearer ")) {
                         token = authHeader.substring(7);
@@ -55,15 +52,17 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
                 }
 
                 // 4️⃣ Query param handoff_jwt
+                AtomicBoolean tokenFromQuery = new AtomicBoolean(false);
                 if (token == null) {
                         String queryToken = ctx.request().getParam("handoff_jwt");
                         if (queryToken != null && !queryToken.isBlank()) {
                                 token = queryToken;
                                 tokenSource = "query param (handoff_jwt)";
+                                tokenFromQuery.set(true);
                         }
                 }
 
-                // 5️⃣ Cookie (__session) – optional
+                // 5️⃣ Cookie (__session)
                 if (token == null) {
                         Cookie sessionCookie = ctx.request().getCookie("__session");
                         if (sessionCookie != null) {
@@ -72,13 +71,9 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
                         }
                 }
 
-                // 6️⃣ No token → redirect (browser) or 401 (API)
+                // 6️⃣ No token
                 if (token == null) {
                         if (isBrowserNavigation(ctx)) {
-                                log.info(
-                                                "Unauthenticated browser request → redirecting [host={}, path={}]",
-                                                ctx.request().host(),
-                                                path);
                                 RedirectUtil.redirectToLogin(ctx);
                         } else {
                                 ctx.response()
@@ -89,26 +84,21 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
                         return;
                 }
 
-                // 🔒 Freeze variables for async lambda
                 final String finalToken = token;
                 final String finalTokenSource = tokenSource;
 
                 log.info(
-                                "Verifying JWT [source={}, method={}, host={}, path={}]",
+                                "Verifying JWT [source={}, host={}, path={}]",
                                 finalTokenSource,
-                                ctx.request().method(),
                                 ctx.request().host(),
                                 path);
 
                 verifier.verify(finalToken, ar -> {
                         if (ar.failed()) {
                                 log.warn(
-                                                "JWT verification failed " +
-                                                                "[source={}, host={}, path={}, reason={}]",
+                                                "JWT verification failed [source={}, path={}]",
                                                 finalTokenSource,
-                                                ctx.request().host(),
-                                                path,
-                                                ar.cause().getMessage());
+                                                path);
                                 ctx.response().setStatusCode(401).end("Invalid token");
                                 return;
                         }
@@ -117,30 +107,28 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
                         ctx.put("authUser", claims);
 
                         log.info(
-                                        "JWT verified successfully [sub={}, source={}]",
+                                        "JWT verified [sub={}, source={}]",
                                         claims.getString("sub"),
                                         finalTokenSource);
 
-                        // 7️⃣ Role-based authorization
+                        // 🔑 REMOVE JWT FROM URL (important)
+                        if (tokenFromQuery.get() && isBrowserNavigation(ctx)) {
+                                String cleanUrl = buildCleanUrl(ctx);
+                                log.info("Redirecting to clean URL (JWT stripped)");
+                                ctx.response()
+                                                .setStatusCode(302)
+                                                .putHeader("Location", cleanUrl)
+                                                .end();
+                                return;
+                        }
+
+                        // 7️⃣ Role check
                         if (policy.role != null) {
                                 String role = claims.getString("role");
-
                                 if (role == null || !policy.role.equalsIgnoreCase(role)) {
-                                        log.warn(
-                                                        "Access denied (role mismatch) " +
-                                                                        "[required={}, actual={}, host={}, path={}]",
-                                                        policy.role,
-                                                        role,
-                                                        ctx.request().host(),
-                                                        path);
                                         ctx.response().setStatusCode(403).end("Forbidden");
                                         return;
                                 }
-
-                                log.info(
-                                                "Role check passed [role={}, host={}]",
-                                                role,
-                                                ctx.request().host());
                         }
 
                         ctx.next();
@@ -150,5 +138,23 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
         private boolean isBrowserNavigation(RoutingContext ctx) {
                 String accept = ctx.request().getHeader("Accept");
                 return accept != null && accept.contains("text/html");
+        }
+
+        /**
+         * Rebuild URL without handoff_jwt
+         */
+        private String buildCleanUrl(RoutingContext ctx) {
+                String base = ctx.request().scheme() + "://" +
+                                ctx.request().host() +
+                                ctx.request().path();
+
+                String query = ctx.request().params().entries().stream()
+                                .filter(e -> !"handoff_jwt".equals(e.getKey()))
+                                .map(e -> URLEncoder.encode(e.getKey(), StandardCharsets.UTF_8) +
+                                                "=" +
+                                                URLEncoder.encode(e.getValue(), StandardCharsets.UTF_8))
+                                .collect(Collectors.joining("&"));
+
+                return query.isEmpty() ? base : base + "?" + query;
         }
 }
