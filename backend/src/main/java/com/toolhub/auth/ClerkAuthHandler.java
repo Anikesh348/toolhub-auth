@@ -26,7 +26,7 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
 
                 // 1️⃣ Allow internal paths early (API / assets / ws)
                 if (policy.isPathAllowed(path)) {
-                        log.debug(
+                        log.info(
                                         "Path allowed without auth [host={}, path={}]",
                                         ctx.request().host(),
                                         path);

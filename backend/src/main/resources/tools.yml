@@ -9,7 +9,6 @@ tools:
 
       # IMPORTANT: allow internal Dozzle calls
       allowPaths:
-        - /
         - /assets/*
         - /favicon.ico
         - /api/*
