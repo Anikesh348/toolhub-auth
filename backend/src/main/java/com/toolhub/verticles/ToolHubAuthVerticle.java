@@ -8,6 +8,8 @@ import com.toolhub.config.ToolPolicyLoader;
 import com.toolhub.proxy.ReverseProxyHandler;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.ext.web.Router;
+import io.vertx.ext.web.client.WebClient;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -58,6 +60,7 @@ public class ToolHubAuthVerticle extends AbstractVerticle {
             ctx.put("policy", policy);
             ctx.next();
         });
+        WebClient webClient =  WebClient.create(vertx);
 
         // JWT verifier (JWKS cached in-memory)
         ClerkJwtVerifier verifier = new ClerkJwtVerifier(vertx);
@@ -65,7 +68,7 @@ public class ToolHubAuthVerticle extends AbstractVerticle {
         int port = Integer.parseInt(AppConfig.HTTP_PORT);
         router.route()
                 .handler(new ClerkAuthHandler(verifier))
-                .handler(new ReverseProxyHandler(vertx));
+                .handler(new ReverseProxyHandler(webClient));
 
         vertx.createHttpServer()
                 .requestHandler(router)
