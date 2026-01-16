@@ -1,5 +1,6 @@
 package com.toolhub.verticles;
 
+import com.toolhub.auth.AuthCheckHandler;
 import com.toolhub.auth.ClerkAuthHandler;
 import com.toolhub.auth.ClerkJwtVerifier;
 import com.toolhub.config.AppConfig;
@@ -69,6 +70,9 @@ public class ToolHubAuthVerticle extends AbstractVerticle {
         int port = Integer.parseInt(AppConfig.HTTP_PORT);
         router.route()
                 .handler(new ClerkAuthHandler(verifier));
+
+        router.get("/internal/auth/check")
+                .handler(new AuthCheckHandler());
 
         vertx.createHttpServer()
                 .requestHandler(router)
