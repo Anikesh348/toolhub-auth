@@ -25,16 +25,17 @@ services:
     image: amir20/dozzle:latest
     container_name: dozzle
     restart: unless-stopped
-    # Optional: keep host access if you want
     ports:
       - "127.0.0.1:9999:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
+      DOZZLE_BASE: /_proxy/dozzle
       DOZZLE_LEVEL: info
       DOZZLE_TAILSIZE: 300
     networks:
       - toolhub-net
+
 
 networks:
   toolhub-net:

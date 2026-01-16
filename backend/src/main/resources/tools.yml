@@ -1,7 +1,7 @@
 tools:
   dozzle:
     host: logs.hostingfrompurva.xyz
-    target: /_proxy/dozzle
+    target: /_proxy/dozzle/
 
     auth:
       required: true
