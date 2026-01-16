@@ -32,8 +32,8 @@ public class ToolPolicy {
 
             // Prefix match: /api/*
             if (allowed.endsWith("/*")) {
-                String prefix = allowed.substring(0, allowed.length() - 1);
-                if (requestPath.startsWith(prefix)) {
+                String prefix = allowed.substring(0, allowed.length() - 2);
+                if (requestPath.startsWith(prefix + "/")) {
                     return true;
                 }
             }
@@ -41,4 +41,5 @@ public class ToolPolicy {
 
         return false;
     }
+
 }
