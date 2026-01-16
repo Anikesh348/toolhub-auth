@@ -12,9 +12,6 @@ import io.vertx.ext.web.RoutingContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Arrays;
-import java.util.stream.Collectors;
-
 public class ClerkAuthHandler implements Handler<RoutingContext> {
 
         private static final Logger log = LoggerFactory.getLogger(ClerkAuthHandler.class);
@@ -25,7 +22,7 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
 
         public ClerkAuthHandler(ClerkJwtVerifier clerkVerifier) {
                 this.clerkVerifier = clerkVerifier;
-                log.info("ClerkAuthHandler initialized (Clerk → ToolHub session JWT)");
+                log.info("ClerkAuthHandler initialized (generic tool gateway)");
         }
 
         @Override
@@ -34,7 +31,7 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
                 ToolPolicy policy = ctx.get("policy");
                 String path = ctx.request().path();
 
-                // 1️⃣ Public / allowed paths
+                // 1️⃣ Allow explicitly whitelisted paths
                 if (!policy.authRequired || policy.isPathAllowed(path)) {
                         ctx.next();
                         return;
@@ -43,7 +40,7 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
                 String token = null;
                 TokenType tokenType = TokenType.NONE;
 
-                // 2️⃣ Authorization header (API / automation)
+                // 2️⃣ Authorization header (automation / API)
                 String authHeader = ctx.request().getHeader("Authorization");
                 if (authHeader != null && authHeader.startsWith("Bearer ")) {
                         token = authHeader.substring(7);
@@ -68,25 +65,25 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
                         }
                 }
 
-                // 5️⃣ No token → redirect / 401
+                // 5️⃣ No token → login
                 if (token == null) {
                         handleUnauthenticated(ctx);
                         return;
                 }
 
-                // 6️⃣ Clerk JWT (handoff flow)
+                // 6️⃣ Clerk → Session mint
                 if (tokenType == TokenType.CLERK) {
                         handleClerkJwt(ctx, token, policy);
                         return;
                 }
 
-                // 7️⃣ Session JWT (normal flow)
+                // 7️⃣ Session validation
                 handleSessionJwt(ctx, token, policy);
         }
 
         /*
          * =========================
-         * Clerk JWT → session flow
+         * Clerk JWT → Session flow
          * =========================
          */
 
@@ -96,7 +93,8 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
                         ToolPolicy policy) {
                 clerkVerifier.verify(clerkJwt, ar -> {
                         if (ar.failed()) {
-                                log.warn("Clerk JWT verification failed: {}", ar.cause().getMessage());
+                                log.warn("Clerk JWT verification failed: {}",
+                                                ar.cause().getMessage());
                                 handleUnauthenticated(ctx);
                                 return;
                         }
@@ -108,7 +106,7 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
                                 return;
                         }
 
-                        // ✅ Mint ToolHub session JWT
+                        // 🔐 Mint session JWT
                         String sessionToken = ToolHubSessionJwtProvider.generateSessionToken(
                                         clerkClaims.getString("sub"),
                                         clerkClaims.getString("role"),
@@ -124,8 +122,19 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
 
                         ctx.response().addCookie(cookie);
 
-                        // Redirect to clean URL (remove handoff_jwt)
-                        redirectToCleanUrl(ctx);
+                        // ✅ CRITICAL CHANGE:
+                        // Redirect to tool target (used by Caddy)
+                        String target = policy.target;
+
+                        log.info(
+                                        "Auth complete for user={}, redirecting to tool target={}",
+                                        clerkClaims.getString("sub"),
+                                        target);
+
+                        ctx.response()
+                                        .setStatusCode(302)
+                                        .putHeader("Location", target)
+                                        .end();
                 });
         }
 
@@ -154,6 +163,17 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
                                 return;
                         }
 
+                        // ⭐ NEW: default landing redirect
+                        if ("/".equals(ctx.request().path())
+                                        && isBrowserNavigation(ctx)) {
+
+                                ctx.response()
+                                                .setStatusCode(302)
+                                                .putHeader("Location", policy.target)
+                                                .end();
+                                return;
+                        }
+
                         ctx.next();
 
                 } catch (Exception e) {
@@ -168,11 +188,14 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
          * =========================
          */
 
-        private boolean isRoleAllowed(ToolPolicy policy, JsonObject claims) {
+        private boolean isRoleAllowed(
+                        ToolPolicy policy,
+                        JsonObject claims) {
                 if (policy.role == null)
                         return true;
                 String role = claims.getString("role");
-                return role != null && policy.role.equalsIgnoreCase(role);
+                return role != null &&
+                                policy.role.equalsIgnoreCase(role);
         }
 
         private void handleUnauthenticated(RoutingContext ctx) {
@@ -189,24 +212,6 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
         private boolean isBrowserNavigation(RoutingContext ctx) {
                 String accept = ctx.request().getHeader("Accept");
                 return accept != null && accept.contains("text/html");
-        }
-
-        private static void redirectToCleanUrl(RoutingContext ctx) {
-                String path = ctx.request().path();
-                String query = ctx.request().query();
-
-                if (query != null && query.contains("handoff_jwt")) {
-                        String cleaned = Arrays.stream(query.split("&"))
-                                        .filter(p -> !p.startsWith("handoff_jwt="))
-                                        .collect(Collectors.joining("&"));
-
-                        path = cleaned.isEmpty() ? path : path + "?" + cleaned;
-                }
-
-                ctx.response()
-                                .setStatusCode(302)
-                                .putHeader("Location", path)
-                                .end();
         }
 
         private enum TokenType {

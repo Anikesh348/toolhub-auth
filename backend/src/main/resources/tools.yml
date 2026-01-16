@@ -1,7 +1,7 @@
 tools:
   dozzle:
     host: logs.hostingfrompurva.xyz
-    target: http://dozzle:8080
+    target: /_proxy/dozzle
 
     auth:
       required: true
@@ -19,7 +19,7 @@ tools:
 
   netdata:
     host: metrics.hostingfrompurva.xyz
-    target: http://localhost:19999
+    target: /_proxy/netdata
 
     auth:
       required: true
