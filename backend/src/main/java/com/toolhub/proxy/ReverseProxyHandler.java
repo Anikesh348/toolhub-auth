@@ -48,121 +48,47 @@ public class ReverseProxyHandler implements Handler<RoutingContext> {
                 ctx.request().path(),
                 policy.target);
 
-        // Determine the correct port and scheme
-        int port = target.getPort();
-        if (port == -1) {
-            port = "https".equalsIgnoreCase(target.getScheme()) ? 443 : 80;
-        }
-
-        // Use HTTPS if the target URL specifies it
-        boolean ssl = "https".equalsIgnoreCase(target.getScheme());
-
-        HttpClientRequest upstreamRequest = httpClient.request(
-                new RequestOptions()
-                        .setMethod(ctx.request().method())
-                        .setPort(port)
-                        .setHost(target.getHost())
-                        .setURI(ctx.request().uri())
-                        .setSsl(ssl)
-                        .setTimeout(0) // No timeout for SSE streams
-        ).result();
-
-        if (upstreamRequest == null) {
-            log.error("Failed to create upstream SSE request");
-            ctx.response().setStatusCode(502).end();
-            return;
-        }
-
-        // Copy headers from client to upstream
-        ctx.request().headers().forEach(h -> {
-            String headerName = h.getKey().toLowerCase();
-            // Skip headers that shouldn't be forwarded
-            if (!headerName.equals("host") &&
-                    !headerName.equals("connection") &&
-                    !headerName.equals("keep-alive") &&
-                    !headerName.equals("transfer-encoding")) {
-                upstreamRequest.putHeader(h.getKey(), h.getValue());
-            }
-        });
-
-        // Ensure proper SSE headers on upstream request
-        upstreamRequest.putHeader("Accept", "text/event-stream");
-        upstreamRequest.putHeader("Cache-Control", "no-cache");
-        upstreamRequest.putHeader("Connection", "keep-alive");
-
-        // Handle connection failures
-        upstreamRequest.exceptionHandler(err -> {
-            log.error("SSE upstream connection failed", err);
-            if (!ctx.response().ended()) {
-                ctx.response().setStatusCode(502).end();
-            }
-        });
-
-        // Send the request and handle the response
-        upstreamRequest.send(ctx.body().buffer())
+        httpClient.request(
+                ctx.request().method(),
+                target.getPort() == -1 ? 80 : target.getPort(),
+                target.getHost(),
+                ctx.request().uri())
                 .onFailure(err -> {
-                    log.error("SSE upstream send failed", err);
-                    if (!ctx.response().ended()) {
-                        ctx.response().setStatusCode(502).end();
-                    }
+                    log.error("SSE upstream connection failed", err);
+                    ctx.response().setStatusCode(502).end();
                 })
-                .onSuccess(upstreamResponse -> {
-                    HttpServerResponse downstream = ctx.response();
+                .onSuccess(proxyReq -> {
 
-                    // Set up SSE response headers BEFORE any data is written
-                    downstream.setStatusCode(upstreamResponse.statusCode());
-                    downstream.setChunked(true);
-
-                    // Copy response headers from upstream
-                    upstreamResponse.headers().forEach(h -> {
-                        String headerName = h.getKey().toLowerCase();
-                        // Skip headers that Vert.x manages or that conflict with chunked encoding
-                        if (!headerName.equals("transfer-encoding") &&
-                                !headerName.equals("content-length") &&
-                                !headerName.equals("connection")) {
-                            downstream.putHeader(h.getKey(), h.getValue());
+                    // Copy headers
+                    ctx.request().headers().forEach(h -> {
+                        if (!h.getKey().equalsIgnoreCase("host")) {
+                            proxyReq.putHeader(h.getKey(), h.getValue());
                         }
                     });
 
-                    // Ensure critical SSE headers are set
-                    downstream.putHeader("Content-Type", "text/event-stream");
-                    downstream.putHeader("Cache-Control", "no-cache");
-                    downstream.putHeader("Connection", "keep-alive");
-                    downstream.putHeader("X-Accel-Buffering", "no"); // Disable nginx buffering if behind nginx
-
-                    // Stream data from upstream to downstream
-                    upstreamResponse.handler(chunk -> {
-                        if (!downstream.ended()) {
-                            downstream.write(chunk);
+                    proxyReq.send(ar -> {
+                        if (ar.failed()) {
+                            ctx.response().setStatusCode(502).end();
+                            return;
                         }
-                    });
 
-                    // Handle upstream completion
-                    upstreamResponse.endHandler(v -> {
-                        log.info("SSE upstream ended normally");
-                        if (!downstream.ended()) {
+                        HttpClientResponse upstream = ar.result();
+                        HttpServerResponse downstream = ctx.response();
+
+                        // ⭐ REQUIRED FOR SSE
+                        downstream.setChunked(true);
+                        downstream.setStatusCode(upstream.statusCode());
+
+                        upstream.headers().forEach(h -> downstream.putHeader(h.getKey(), h.getValue()));
+
+                        // Stream chunks forever
+                        upstream.handler(downstream::write);
+
+                        upstream.endHandler(v -> downstream.end());
+                        upstream.exceptionHandler(err -> {
+                            log.error("SSE stream error", err);
                             downstream.end();
-                        }
-                    });
-
-                    // Handle upstream errors
-                    upstreamResponse.exceptionHandler(err -> {
-                        log.error("SSE stream error from upstream", err);
-                        if (!downstream.ended()) {
-                            downstream.end();
-                        }
-                    });
-
-                    // Handle downstream close (client disconnected)
-                    downstream.closeHandler(v -> {
-                        log.info("SSE downstream connection closed by client");
-                        upstreamResponse.request().reset();
-                    });
-
-                    // Handle downstream errors
-                    downstream.exceptionHandler(err -> {
-                        log.error("SSE downstream error", err);
-                        upstreamResponse.request().reset();
+                        });
                     });
                 });
     }
@@ -183,21 +109,14 @@ public class ReverseProxyHandler implements Handler<RoutingContext> {
         HttpRequest<Buffer> proxyReq = webClient.requestAbs(method, targetUrl);
 
         ctx.request().headers().forEach(h -> {
-            String name = h.getKey().toLowerCase();
-            if (name.equals("host"))
+            String name = h.getKey();
+            if (name.equalsIgnoreCase("host"))
                 return;
-            if (name.equals("authorization"))
+            if (name.equalsIgnoreCase("authorization"))
                 return;
-            if (name.equals("cookie"))
+            if (name.equalsIgnoreCase("cookie"))
                 return;
-            // Also skip connection-specific headers
-            if (name.equals("connection"))
-                return;
-            if (name.equals("keep-alive"))
-                return;
-            if (name.equals("transfer-encoding"))
-                return;
-            proxyReq.putHeader(h.getKey(), h.getValue());
+            proxyReq.putHeader(name, h.getValue());
         });
 
         Buffer body = ctx.body().buffer();
@@ -207,21 +126,14 @@ public class ReverseProxyHandler implements Handler<RoutingContext> {
                 .sendBuffer(body, ar -> {
                     if (ar.failed()) {
                         log.error("HTTP proxy failed", ar.cause());
-                        if (!ctx.response().ended()) {
-                            ctx.response().setStatusCode(502).end("Bad Gateway");
-                        }
+                        ctx.response().setStatusCode(502).end("Bad Gateway");
                         return;
                     }
 
                     HttpResponse<Buffer> proxyRes = ar.result();
                     ctx.response().setStatusCode(proxyRes.statusCode());
-                    proxyRes.headers().forEach(h -> {
-                        String headerName = h.getKey().toLowerCase();
-                        if (!headerName.equals("transfer-encoding") &&
-                                !headerName.equals("connection")) {
-                            ctx.response().putHeader(h.getKey(), h.getValue());
-                        }
-                    });
+                    proxyRes.headers()
+                            .forEach(h -> ctx.response().putHeader(h.getKey(), h.getValue()));
 
                     ctx.response().end(proxyRes.body());
                 });
