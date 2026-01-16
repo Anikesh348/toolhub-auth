@@ -26,34 +26,58 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
                 // Tool does not require authentication
                 if (!policy.authRequired) {
                         log.debug(
-                                        "Auth not required for host='{}' [path={}]",
+                                        "Auth not required [host={}, path={}]",
                                         ctx.request().host(),
                                         ctx.request().path());
                         ctx.next();
                         return;
                 }
 
-                String authHeader = ctx.request().getHeader("Authorization");
                 String token = null;
+                String tokenSource = null;
+                
+                String finalTokenSource = tokenSource;
 
+                // 1️⃣ Authorization header (preferred)
+                String authHeader = ctx.request().getHeader("Authorization");
                 if (authHeader != null && authHeader.startsWith("Bearer ")) {
                         token = authHeader.substring(7);
+                        finalTokenSource = "Authorization header";
                 }
+
+                // 2️⃣ Query param handoff_jwt
+                if (token == null) {
+                        String queryToken = ctx.request().getParam("handoff_jwt");
+                        if (queryToken != null && !queryToken.isBlank()) {
+                                token = queryToken;
+                                finalTokenSource = "query param (handoff_jwt)";
+                        }
+                }
+
+                // 3️⃣ Cookie (optional / future)
                 if (token == null) {
                         Cookie sessionCookie = ctx.request().getCookie("__session");
                         if (sessionCookie != null) {
                                 token = sessionCookie.getValue();
+                                finalTokenSource = "cookie (__session)";
                         }
                 }
 
+                // No token → redirect to login
                 if (token == null) {
+                        log.info(
+                                        "No auth token found, redirecting to login " +
+                                                        "[method={}, host={}, path={}]",
+                                        ctx.request().method(),
+                                        ctx.request().host(),
+                                        ctx.request().path());
                         RedirectUtil.redirectToLogin(ctx);
                         return;
                 }
 
-                log.debug(
-                                "Authorization header present, verifying JWT " +
-                                                "[method={}, host={}, path={}]",
+                log.info(
+                                "Verifying JWT from {} [method={}, host={}, path={}]",
+                                finalTokenSource,
                                 ctx.request().method(),
                                 ctx.request().host(),
                                 ctx.request().path());
@@ -62,8 +86,8 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
                         if (ar.failed()) {
                                 log.warn(
                                                 "JWT verification failed " +
-                                                                "[method={}, host={}, path={}, reason={}]",
-                                                ctx.request().method(),
+                                                                "[source={}, host={}, path={}, reason={}]",
+                                                tokenSource,
                                                 ctx.request().host(),
                                                 ctx.request().path(),
                                                 ar.cause().getMessage());
@@ -74,15 +98,16 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
                         var claims = ar.result();
                         ctx.put("authUser", claims);
 
-                        log.debug(
-                                        "JWT verification successful for subject='{}'",
-                                        claims.getString("sub"));
+                        log.info(
+                                        "JWT verified successfully [sub={}, source={}]",
+                                        claims.getString("sub"),
+                                        tokenSource);
 
                         // Role-based authorization (if required)
                         if (policy.role != null) {
                                 String role = claims.getString("role");
 
-                                if (!policy.role.equalsIgnoreCase(role)) {
+                                if (role == null || !policy.role.equalsIgnoreCase(role)) {
                                         log.warn(
                                                         "Access denied due to role mismatch " +
                                                                         "[required={}, actual={}, host={}, path={}]",

@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useAuth } from "@clerk/clerk-react";
 
 const ALLOWED_HOSTS = [
   "logs.hostingfrompurva.xyz",
@@ -7,41 +8,66 @@ const ALLOWED_HOSTS = [
 ];
 
 export default function RedirectBack() {
+  const { getToken, isLoaded, isSignedIn } = useAuth();
+
   useEffect(() => {
-    console.info("[SSO] RedirectBack mounted");
+    if (!isLoaded || !isSignedIn) return;
 
-    const params = new URLSearchParams(window.location.search);
-    const redirectParam = params.get("redirect");
+    console.info("[SSO] RedirectBack mounted & signed in");
 
-    let targetUrl: string | null = null;
+    (async () => {
+      try {
+        const clerkJwt = await getToken();
 
-    try {
-      if (redirectParam) {
-        const url = new URL(redirectParam);
-
-        if (ALLOWED_HOSTS.includes(url.host)) {
-          targetUrl = url.toString();
-          console.info("[SSO] Valid redirect target:", targetUrl);
-        } else {
-          console.error("[SSO] Blocked redirect to untrusted host:", url.host);
+        if (!clerkJwt) {
+          console.error("[SSO] Failed to obtain Clerk JWT");
+          return;
         }
+
+        const params = new URLSearchParams(window.location.search);
+        const redirectParam = params.get("redirect");
+
+        let targetUrl: URL | null = null;
+
+        if (redirectParam) {
+          try {
+            const url = new URL(redirectParam);
+
+            if (ALLOWED_HOSTS.includes(url.host)) {
+              targetUrl = url;
+              console.info("[SSO] Valid redirect target:", url.toString());
+            } else {
+              console.error(
+                "[SSO] Blocked redirect to untrusted host:",
+                url.host
+              );
+            }
+          } catch (err) {
+            console.error("[SSO] Invalid redirect URL", err);
+          }
+        }
+
+        // Safe fallback
+        if (!targetUrl) {
+          targetUrl =
+            window.location.hostname === "localhost"
+              ? new URL("http://localhost:8082")
+              : new URL("https://logs.hostingfrompurva.xyz");
+
+          console.info("[SSO] Using fallback redirect:", targetUrl.toString());
+        }
+
+        // 🔐 Append JWT as one-time handoff token
+        targetUrl.searchParams.set("handoff_jwt", clerkJwt);
+
+        console.info("[SSO] Redirecting with handoff JWT");
+
+        window.location.replace(targetUrl.toString());
+      } catch (err) {
+        console.error("[SSO] RedirectBack failed", err);
       }
-    } catch (err) {
-      console.error("[SSO] Invalid redirect URL", err);
-    }
-
-    // Fallback (safe default)
-    if (!targetUrl) {
-      targetUrl =
-        window.location.hostname === "localhost"
-          ? "http://localhost:8082"
-          : "https://logs.hostingfrompurva.xyz";
-
-      console.info("[SSO] Using fallback redirect:", targetUrl);
-    }
-
-    window.location.replace(targetUrl);
-  }, []);
+    })();
+  }, [isLoaded, isSignedIn, getToken]);
 
   return <p>Signing you in…</p>;
 }
