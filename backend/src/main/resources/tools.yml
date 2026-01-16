@@ -1,7 +1,7 @@
 tools: 
   dozzle:
     host: logs.hostingfrompurva.xyz
-    target: http://localhost:9999
+    target: http://dozzle:8080
     auth:
       required: true
       role: admin
