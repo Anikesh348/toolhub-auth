@@ -22,74 +22,92 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
         @Override
         public void handle(RoutingContext ctx) {
                 ToolPolicy policy = ctx.get("policy");
+                String path = ctx.request().path();
 
-                // Tool does not require authentication
+                // 1️⃣ Allow internal paths early (API / assets / ws)
+                if (policy.isPathAllowed(path)) {
+                        log.debug(
+                                        "Path allowed without auth [host={}, path={}]",
+                                        ctx.request().host(),
+                                        path);
+                        ctx.next();
+                        return;
+                }
+
+                // 2️⃣ Tool does not require authentication
                 if (!policy.authRequired) {
                         log.debug(
                                         "Auth not required [host={}, path={}]",
                                         ctx.request().host(),
-                                        ctx.request().path());
+                                        path);
                         ctx.next();
                         return;
                 }
 
                 String token = null;
                 String tokenSource = null;
-                
-                String finalTokenSource = tokenSource;
 
-                // 1️⃣ Authorization header (preferred)
+                // 3️⃣ Authorization header (preferred)
                 String authHeader = ctx.request().getHeader("Authorization");
                 if (authHeader != null && authHeader.startsWith("Bearer ")) {
                         token = authHeader.substring(7);
-                        finalTokenSource = "Authorization header";
+                        tokenSource = "Authorization header";
                 }
 
-                // 2️⃣ Query param handoff_jwt
+                // 4️⃣ Query param handoff_jwt
                 if (token == null) {
                         String queryToken = ctx.request().getParam("handoff_jwt");
                         if (queryToken != null && !queryToken.isBlank()) {
                                 token = queryToken;
-                                finalTokenSource = "query param (handoff_jwt)";
+                                tokenSource = "query param (handoff_jwt)";
                         }
                 }
 
-                // 3️⃣ Cookie (optional / future)
+                // 5️⃣ Cookie (__session) – optional
                 if (token == null) {
                         Cookie sessionCookie = ctx.request().getCookie("__session");
                         if (sessionCookie != null) {
                                 token = sessionCookie.getValue();
-                                finalTokenSource = "cookie (__session)";
+                                tokenSource = "cookie (__session)";
                         }
                 }
 
-                // No token → redirect to login
+                // 6️⃣ No token → redirect (browser) or 401 (API)
                 if (token == null) {
-                        log.info(
-                                        "No auth token found, redirecting to login " +
-                                                        "[method={}, host={}, path={}]",
-                                        ctx.request().method(),
-                                        ctx.request().host(),
-                                        ctx.request().path());
-                        RedirectUtil.redirectToLogin(ctx);
+                        if (isBrowserNavigation(ctx)) {
+                                log.info(
+                                                "Unauthenticated browser request → redirecting [host={}, path={}]",
+                                                ctx.request().host(),
+                                                path);
+                                RedirectUtil.redirectToLogin(ctx);
+                        } else {
+                                ctx.response()
+                                                .setStatusCode(401)
+                                                .putHeader("Content-Type", "application/json")
+                                                .end("{\"error\":\"unauthenticated\"}");
+                        }
                         return;
                 }
 
+                // 🔒 Freeze variables for async lambda
+                final String finalToken = token;
+                final String finalTokenSource = tokenSource;
+
                 log.info(
-                                "Verifying JWT from {} [method={}, host={}, path={}]",
+                                "Verifying JWT [source={}, method={}, host={}, path={}]",
                                 finalTokenSource,
                                 ctx.request().method(),
                                 ctx.request().host(),
-                                ctx.request().path());
+                                path);
 
-                verifier.verify(token, ar -> {
+                verifier.verify(finalToken, ar -> {
                         if (ar.failed()) {
                                 log.warn(
                                                 "JWT verification failed " +
                                                                 "[source={}, host={}, path={}, reason={}]",
-                                                tokenSource,
+                                                finalTokenSource,
                                                 ctx.request().host(),
-                                                ctx.request().path(),
+                                                path,
                                                 ar.cause().getMessage());
                                 ctx.response().setStatusCode(401).end("Invalid token");
                                 return;
@@ -101,20 +119,20 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
                         log.info(
                                         "JWT verified successfully [sub={}, source={}]",
                                         claims.getString("sub"),
-                                        tokenSource);
+                                        finalTokenSource);
 
-                        // Role-based authorization (if required)
+                        // 7️⃣ Role-based authorization
                         if (policy.role != null) {
                                 String role = claims.getString("role");
 
                                 if (role == null || !policy.role.equalsIgnoreCase(role)) {
                                         log.warn(
-                                                        "Access denied due to role mismatch " +
+                                                        "Access denied (role mismatch) " +
                                                                         "[required={}, actual={}, host={}, path={}]",
                                                         policy.role,
                                                         role,
                                                         ctx.request().host(),
-                                                        ctx.request().path());
+                                                        path);
                                         ctx.response().setStatusCode(403).end("Forbidden");
                                         return;
                                 }
@@ -127,5 +145,10 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
 
                         ctx.next();
                 });
+        }
+
+        private boolean isBrowserNavigation(RoutingContext ctx) {
+                String accept = ctx.request().getHeader("Accept");
+                return accept != null && accept.contains("text/html");
         }
 }

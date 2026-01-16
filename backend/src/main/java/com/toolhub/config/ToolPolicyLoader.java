@@ -5,13 +5,14 @@ import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.Yaml;
 
 import java.io.InputStream;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class ToolPolicyLoader {
 
-    private static final Logger log =
-            LoggerFactory.getLogger(ToolPolicyLoader.class);
+    private static final Logger log = LoggerFactory.getLogger(ToolPolicyLoader.class);
 
     @SuppressWarnings("unchecked")
     public static Map<String, ToolPolicy> load(String resourceName) {
@@ -24,8 +25,7 @@ public class ToolPolicyLoader {
         if (is == null) {
             log.error("Tool policy resource '{}' not found on classpath", resourceName);
             throw new IllegalStateException(
-                    "Could not find " + resourceName + " on classpath"
-            );
+                    "Could not find " + resourceName + " on classpath");
         }
 
         Yaml yaml = new Yaml();
@@ -41,8 +41,7 @@ public class ToolPolicyLoader {
         if (root == null || !root.containsKey("tools")) {
             log.error("Invalid tools.yml: missing top-level 'tools' key");
             throw new IllegalStateException(
-                    "Invalid tools.yml: missing 'tools' section"
-            );
+                    "Invalid tools.yml: missing 'tools' section");
         }
 
         Map<String, Object> tools = (Map<String, Object>) root.get("tools");
@@ -56,31 +55,37 @@ public class ToolPolicyLoader {
                 ToolPolicy p = new ToolPolicy();
                 p.host = (String) tool.get("host");
                 p.target = (String) tool.get("target");
+
                 p.authRequired = auth != null && Boolean.TRUE.equals(auth.get("required"));
                 p.role = auth != null ? (String) auth.get("role") : null;
 
+                // ✅ NEW: allowPaths support
+                if (auth != null && auth.containsKey("allowPaths")) {
+                    p.allowPaths = (List<String>) auth.get("allowPaths");
+                } else {
+                    p.allowPaths = Collections.emptyList();
+                }
+
                 policies.put(p.host, p);
 
-                log.debug(
-                        "Loaded tool policy '{}' [host={}, target={}, authRequired={}, role={}]",
+                log.info(
+                        "Loaded tool policy '{}' [host={}, target={}, authRequired={}, role={}, allowPaths={}]",
                         key,
                         p.host,
                         p.target,
                         p.authRequired,
-                        p.role
-                );
+                        p.role,
+                        p.allowPaths);
             } catch (Exception e) {
                 log.error(
                         "Failed to load tool policy '{}' from tools.yml",
                         key,
-                        e
-                );
+                        e);
                 throw e;
             }
         });
 
         log.info("Successfully loaded {} tool policies", policies.size());
-
         return policies;
     }
 }

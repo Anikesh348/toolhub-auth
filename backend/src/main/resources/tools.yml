@@ -1,14 +1,32 @@
-tools: 
+tools:
   dozzle:
     host: logs.hostingfrompurva.xyz
     target: http://dozzle:8080
+
     auth:
       required: true
       role: admin
 
+      # IMPORTANT: allow internal Dozzle calls
+      allowPaths:
+        - /
+        - /assets/*
+        - /favicon.ico
+        - /api/*
+        - /ws
+        - /sockjs/*
+        - /health
+
   netdata:
     host: metrics.hostingfrompurva.xyz
     target: http://localhost:19999
+
     auth:
       required: true
       role: admin
+
+      allowPaths:
+        - /
+        - /api/*
+        - /netdata/*
+        - /ws
