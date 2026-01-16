@@ -6,6 +6,8 @@ import com.toolhub.config.AppConfig;
 import com.toolhub.config.ToolPolicy;
 import com.toolhub.config.ToolPolicyLoader;
 import io.vertx.core.http.HttpClient;
+import io.vertx.core.http.HttpClientOptions;
+
 import com.toolhub.proxy.ReverseProxyHandler;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.ext.web.Router;
@@ -18,8 +20,7 @@ import java.util.Map;
 
 public class ToolHubAuthVerticle extends AbstractVerticle {
 
-    private static final Logger log =
-            LoggerFactory.getLogger(ToolHubAuthVerticle.class);
+    private static final Logger log = LoggerFactory.getLogger(ToolHubAuthVerticle.class);
 
     @Override
     public void start() {
@@ -46,8 +47,7 @@ public class ToolHubAuthVerticle extends AbstractVerticle {
                         "No tool policy found for host='{}' [method={}, path={}]",
                         host,
                         ctx.request().method(),
-                        ctx.request().path()
-                );
+                        ctx.request().path());
                 ctx.response().setStatusCode(404).end();
                 return;
             }
@@ -55,8 +55,7 @@ public class ToolHubAuthVerticle extends AbstractVerticle {
             log.info(
                     "Resolved tool policy for host='{}' → target='{}'",
                     host,
-                    policy.target
-            );
+                    policy.target);
 
             ctx.put("policy", policy);
             ctx.next();
@@ -68,7 +67,14 @@ public class ToolHubAuthVerticle extends AbstractVerticle {
         int port = Integer.parseInt(AppConfig.HTTP_PORT);
 
         WebClient webClient = WebClient.create(vertx);
-        HttpClient httpClient = vertx.createHttpClient();
+        HttpClientOptions options = new HttpClientOptions()
+                .setKeepAlive(true)
+                .setIdleTimeout(0) // 🔑 DO NOT AUTO-CLOSE
+                .setConnectTimeout(5000)
+                .setTcpKeepAlive(true);
+
+        HttpClient httpClient = vertx.createHttpClient(options);
+
         router.route()
                 .handler(new ClerkAuthHandler(verifier))
                 .handler(new ReverseProxyHandler(webClient, httpClient));
