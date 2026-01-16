@@ -9,6 +9,8 @@ import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientOptions;
 
 import com.toolhub.proxy.ReverseProxyHandler;
+import com.toolhub.session.ToolHubSessionJwtProvider;
+
 import io.vertx.core.AbstractVerticle;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.client.WebClient;
@@ -65,19 +67,8 @@ public class ToolHubAuthVerticle extends AbstractVerticle {
         ClerkJwtVerifier verifier = new ClerkJwtVerifier(vertx);
         log.info("Clerk JWT verifier initialized");
         int port = Integer.parseInt(AppConfig.HTTP_PORT);
-
-        WebClient webClient = WebClient.create(vertx);
-        HttpClientOptions options = new HttpClientOptions()
-                .setKeepAlive(true)
-                .setIdleTimeout(0) // 🔑 DO NOT AUTO-CLOSE
-                .setConnectTimeout(5000)
-                .setTcpKeepAlive(true);
-
-        HttpClient httpClient = vertx.createHttpClient(options);
-
         router.route()
-                .handler(new ClerkAuthHandler(verifier))
-                .handler(new ReverseProxyHandler(webClient, httpClient));
+                .handler(new ClerkAuthHandler(verifier));
 
         vertx.createHttpServer()
                 .requestHandler(router)

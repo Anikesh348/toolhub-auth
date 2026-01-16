@@ -20,6 +20,7 @@ dependencies {
     implementation 'io.vertx:vertx-core:4.5.7'
     implementation 'io.vertx:vertx-web:4.5.7'
     implementation 'io.vertx:vertx-web-client:4.5.7'
+    implementation("com.auth0:java-jwt:4.4.0")
     implementation 'org.slf4j:slf4j-api:2.0.9'
     implementation 'org.slf4j:slf4j-simple:2.0.9'
     implementation 'com.auth0:java-jwt:4.4.0'
