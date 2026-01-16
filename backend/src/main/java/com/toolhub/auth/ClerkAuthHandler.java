@@ -27,7 +27,7 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
 
         @Override
         public void handle(RoutingContext ctx) {
-
+                log.info("Root Auth Handler");
                 ToolPolicy policy = ctx.get("policy");
                 String path = ctx.request().path();
 

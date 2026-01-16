@@ -15,18 +15,18 @@ public class AuthCheckHandler implements Handler<RoutingContext> {
 
     @Override
     public void handle(RoutingContext ctx) {
-
+        log.info("GET /internal/auth/check");
         ToolPolicy policy = ctx.get("policy");
 
         if (policy == null) {
-            log.warn("AuthCheck called without resolved ToolPolicy");
+            log.error("AuthCheck called without resolved ToolPolicy");
             ctx.response().setStatusCode(403).end();
             return;
         }
 
         Cookie sessionCookie = ctx.request().getCookie("__toolhub_session");
         if (sessionCookie == null) {
-            log.debug("AuthCheck failed: no session cookie");
+            log.info("AuthCheck failed: no session cookie");
             ctx.response().setStatusCode(401).end();
             return;
         }
@@ -36,7 +36,7 @@ public class AuthCheckHandler implements Handler<RoutingContext> {
             jwt = ToolHubSessionJwtProvider.verifySessionToken(
                     sessionCookie.getValue());
         } catch (Exception e) {
-            log.debug("AuthCheck failed: invalid or expired session", e);
+            log.info("AuthCheck failed: invalid or expired session", e);
             ctx.response().setStatusCode(401).end();
             return;
         }
@@ -45,7 +45,7 @@ public class AuthCheckHandler implements Handler<RoutingContext> {
         if (policy.role != null) {
             String role = jwt.getClaim("role").asString();
             if (role == null || !policy.role.equalsIgnoreCase(role)) {
-                log.warn(
+                log.error(
                         "AuthCheck forbidden: role mismatch [required={}, actual={}]",
                         policy.role,
                         role);
