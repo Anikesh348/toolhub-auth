@@ -6,15 +6,10 @@ import com.toolhub.auth.ClerkJwtVerifier;
 import com.toolhub.config.AppConfig;
 import com.toolhub.config.ToolPolicy;
 import com.toolhub.config.ToolPolicyLoader;
-import io.vertx.core.http.HttpClient;
-import io.vertx.core.http.HttpClientOptions;
 
-import com.toolhub.proxy.ReverseProxyHandler;
-import com.toolhub.session.ToolHubSessionJwtProvider;
 
 import io.vertx.core.AbstractVerticle;
 import io.vertx.ext.web.Router;
-import io.vertx.ext.web.client.WebClient;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

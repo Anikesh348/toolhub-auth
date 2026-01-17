@@ -17,12 +17,10 @@ export default function LoginScreen() {
   return (
     <div style={styles.container}>
       <div style={styles.card}>
-        <img src="/toolhub-logo.png" alt="ToolHub" style={styles.logo} />
+        <img src="/tool_hub-logo.png" alt="ToolHub" style={styles.logo} />
 
         <h1 style={styles.title}>ToolHub</h1>
-        <p style={styles.subtitle}>
-          Secure access to your self-hosted tools
-        </p>
+        <p style={styles.subtitle}>Secure access to your self-hosted tools</p>
 
         <button onClick={signInWithGoogle} style={styles.googleButton}>
           <img

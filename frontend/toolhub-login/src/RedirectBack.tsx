@@ -14,7 +14,6 @@ export default function RedirectBack() {
     (async () => {
       try {
         const clerkJwt = await getToken();
-
         if (!clerkJwt) {
           console.error("[SSO] Failed to obtain Clerk JWT");
           return;
@@ -27,13 +26,12 @@ export default function RedirectBack() {
 
         if (redirectParam) {
           try {
+            // 🔑 This works for HTTPS absolute URLs (your case)
             targetUrl = new URL(redirectParam);
-            console.info(
-              "[SSO] Redirecting to provided URL:",
-              targetUrl.toString()
-            );
+
+            console.info("[SSO] Using redirect target:", targetUrl.toString());
           } catch (err) {
-            console.error("[SSO] Invalid redirect URL, falling back", err);
+            console.error("[SSO] Invalid redirect param, falling back", err);
             targetUrl = new URL(DEFAULT_REDIRECT);
           }
         } else {
@@ -47,7 +45,10 @@ export default function RedirectBack() {
         // 🔐 Append one-time handoff JWT
         targetUrl.searchParams.set("handoff_jwt", clerkJwt);
 
-        console.info("[SSO] Redirecting with handoff JWT");
+        console.info(
+          "[SSO] Redirecting with handoff JWT to:",
+          targetUrl.toString()
+        );
 
         window.location.replace(targetUrl.toString());
       } catch (err) {
