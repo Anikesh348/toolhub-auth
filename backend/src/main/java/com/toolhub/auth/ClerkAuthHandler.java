@@ -32,10 +32,10 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
                 String path = ctx.request().path();
 
                 // 1️⃣ Allow explicitly whitelisted paths
-                // if (!policy.authRequired || policy.isPathAllowed(path)) {
-                //         ctx.next();
-                //         return;
-                // }
+                if (!policy.authRequired || policy.isPathAllowed(path)) {
+                        ctx.next();
+                        return;
+                }
 
                 String token = null;
                 TokenType tokenType = TokenType.NONE;

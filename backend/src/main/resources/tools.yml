@@ -1,7 +1,7 @@
 tools:
   dozzle:
     host: logs.hostingfrompurva.xyz
-    target: /_proxy/dozzle/
+    target: /
 
     auth:
       required: true
@@ -19,14 +19,13 @@ tools:
 
   netdata:
     host: metrics.hostingfrompurva.xyz
-    target: /_proxy/netdata/
+    target: /
 
     auth:
       required: true
       role: admin
 
       allowPaths:
-        - /
         - /api/*
         - /netdata/*
         - /ws

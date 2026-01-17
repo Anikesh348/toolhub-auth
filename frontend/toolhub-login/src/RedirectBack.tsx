@@ -1,52 +1,33 @@
 import { useEffect } from "react";
 import { useAuth } from "@clerk/clerk-react";
 
+const REDIRECT_KEY = "sso_redirect_origin";
+
 export default function RedirectBack() {
   const { getToken, isLoaded, isSignedIn } = useAuth();
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn) return;
 
-    console.info("[SSO] RedirectBack mounted & signed in");
-
     (async () => {
       try {
         const clerkJwt = await getToken();
+        if (!clerkJwt) return;
 
-        if (!clerkJwt) {
-          console.error("[SSO] Failed to obtain Clerk JWT");
+        const origin = sessionStorage.getItem(REDIRECT_KEY);
+
+        if (!origin) {
+          console.error("[SSO] Missing redirect origin");
           return;
         }
 
-        const params = new URLSearchParams(window.location.search);
-        const redirectParam = params.get("redirect");
+        // Clear immediately to prevent reuse
+        sessionStorage.removeItem(REDIRECT_KEY);
 
-        let targetUrl: URL | null = null;
-
-        if (redirectParam) {
-          try {
-            const url = new URL(redirectParam);
-            targetUrl = url;
-          } catch (err) {
-            console.error("[SSO] Invalid redirect URL", err);
-          }
-        }
-
-        // Safe fallback
-        if (!targetUrl) {
-          targetUrl =
-            window.location.hostname === "localhost"
-              ? new URL("http://localhost:8082")
-              : new URL("https://hostingfrompurva.xyz");
-
-          console.info("[SSO] Using fallback redirect:", targetUrl.toString());
-        }
-
-        // 🔐 Append JWT as one-time handoff token
+        const targetUrl = new URL(origin);
         targetUrl.searchParams.set("handoff_jwt", clerkJwt);
 
-        console.info("[SSO] Redirecting with handoff JWT");
-
+        console.info("[SSO] Final redirect:", targetUrl.toString());
         window.location.replace(targetUrl.toString());
       } catch (err) {
         console.error("[SSO] RedirectBack failed", err);
