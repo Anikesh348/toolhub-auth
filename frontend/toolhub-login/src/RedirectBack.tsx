@@ -1,11 +1,7 @@
 import { useEffect } from "react";
 import { useAuth } from "@clerk/clerk-react";
 
-const ALLOWED_HOSTS = [
-  "logs.hostingfrompurva.xyz",
-  "metrics.hostingfrompurva.xyz",
-  "localhost:8082",
-];
+const DEFAULT_REDIRECT = "https://hostingfrompurva.xyz";
 
 export default function RedirectBack() {
   const { getToken, isLoaded, isSignedIn } = useAuth();
@@ -27,37 +23,28 @@ export default function RedirectBack() {
         const params = new URLSearchParams(window.location.search);
         const redirectParam = params.get("redirect");
 
-        let targetUrl: URL | null = null;
+        let targetUrl: URL;
 
         if (redirectParam) {
           try {
-            const url = new URL(redirectParam);
-
-            if (ALLOWED_HOSTS.includes(url.host)) {
-              targetUrl = url;
-              console.info("[SSO] Valid redirect target:", url.toString());
-            } else {
-              console.error(
-                "[SSO] Blocked redirect to untrusted host:",
-                url.host
-              );
-            }
+            targetUrl = new URL(redirectParam);
+            console.info(
+              "[SSO] Redirecting to provided URL:",
+              targetUrl.toString()
+            );
           } catch (err) {
-            console.error("[SSO] Invalid redirect URL", err);
+            console.error("[SSO] Invalid redirect URL, falling back", err);
+            targetUrl = new URL(DEFAULT_REDIRECT);
           }
+        } else {
+          targetUrl = new URL(DEFAULT_REDIRECT);
+          console.info(
+            "[SSO] No redirect param found, using default:",
+            targetUrl.toString()
+          );
         }
 
-        // Safe fallback
-        if (!targetUrl) {
-          targetUrl =
-            window.location.hostname === "localhost"
-              ? new URL("http://localhost:8082")
-              : new URL("https://logs.hostingfrompurva.xyz");
-
-          console.info("[SSO] Using fallback redirect:", targetUrl.toString());
-        }
-
-        // 🔐 Append JWT as one-time handoff token
+        // 🔐 Append one-time handoff JWT
         targetUrl.searchParams.set("handoff_jwt", clerkJwt);
 
         console.info("[SSO] Redirecting with handoff JWT");
