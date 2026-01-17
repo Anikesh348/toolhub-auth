@@ -1,8 +1,6 @@
 import { useEffect } from "react";
 import { useAuth } from "@clerk/clerk-react";
 
-const DEFAULT_REDIRECT = "https://hostingfrompurva.xyz";
-
 export default function RedirectBack() {
   const { getToken, isLoaded, isSignedIn } = useAuth();
 
@@ -14,6 +12,7 @@ export default function RedirectBack() {
     (async () => {
       try {
         const clerkJwt = await getToken();
+
         if (!clerkJwt) {
           console.error("[SSO] Failed to obtain Clerk JWT");
           return;
@@ -22,33 +21,31 @@ export default function RedirectBack() {
         const params = new URLSearchParams(window.location.search);
         const redirectParam = params.get("redirect");
 
-        let targetUrl: URL;
+        let targetUrl: URL | null = null;
 
         if (redirectParam) {
           try {
-            // 🔑 This works for HTTPS absolute URLs (your case)
-            targetUrl = new URL(redirectParam);
-
-            console.info("[SSO] Using redirect target:", targetUrl.toString());
+            const url = new URL(redirectParam);
+            targetUrl = url;
           } catch (err) {
-            console.error("[SSO] Invalid redirect param, falling back", err);
-            targetUrl = new URL(DEFAULT_REDIRECT);
+            console.error("[SSO] Invalid redirect URL", err);
           }
-        } else {
-          targetUrl = new URL(DEFAULT_REDIRECT);
-          console.info(
-            "[SSO] No redirect param found, using default:",
-            targetUrl.toString()
-          );
         }
 
-        // 🔐 Append one-time handoff JWT
+        // Safe fallback
+        if (!targetUrl) {
+          targetUrl =
+            window.location.hostname === "localhost"
+              ? new URL("http://localhost:8082")
+              : new URL("https://hostingfrompurva.xyz");
+
+          console.info("[SSO] Using fallback redirect:", targetUrl.toString());
+        }
+
+        // 🔐 Append JWT as one-time handoff token
         targetUrl.searchParams.set("handoff_jwt", clerkJwt);
 
-        console.info(
-          "[SSO] Redirecting with handoff JWT to:",
-          targetUrl.toString()
-        );
+        console.info("[SSO] Redirecting with handoff JWT");
 
         window.location.replace(targetUrl.toString());
       } catch (err) {
