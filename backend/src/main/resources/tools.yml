@@ -30,13 +30,23 @@ tools:
         - /netdata/*
         - /ws
 
-  jellyfin:
-    host: moviescloud.hostingfrompurva.xyz
-    target: http://127.0.0.1:9001
+jellyfin:
+  host: moviescloud.hostingfrompurva.xyz
+  target: http://127.0.0.1:9001
 
-    auth:
-      required: true
+  auth:
+    required: true
 
-      # ✅ Email allowlist (no role needed)
-      allowedEmails:
-        - anikeshthakur85@gmail.com
+    allowedEmails:
+      - anikeshthakur85@gmail.com
+
+    allowPaths:
+      # Static UI assets
+      - /web/*
+      - /css/*
+      - /fonts/*
+      - /images/*
+      - /favicon.ico
+
+      # WebSocket bootstrap (still authenticated later)
+      - /socket
