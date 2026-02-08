@@ -29,3 +29,14 @@ tools:
         - /api/*
         - /netdata/*
         - /ws
+
+  jellyfin:
+    host: moviescloud.hostingfrompurva.xyz
+    target: http://127.0.0.1:9001
+
+    auth:
+      required: true
+
+      # ✅ Email allowlist (no role needed)
+      allowedEmails:
+        - anikeshthakur85@gmail.com

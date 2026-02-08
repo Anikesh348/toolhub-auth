@@ -101,8 +101,22 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
 
                         JsonObject clerkClaims = ar.result();
 
+                        // 🔐 Role enforcement (existing)
                         if (!isRoleAllowed(policy, clerkClaims)) {
                                 ctx.response().setStatusCode(403).end("Forbidden");
+                                return;
+                        }
+
+                        // 📧 Email allowlist enforcement (NEW)
+                        String email = clerkClaims.getString("email");
+                        if (!policy.isEmailAllowed(email)) {
+                                log.warn(
+                                                "ClerkAuth forbidden: email not allowed [email={}, host={}]",
+                                                email,
+                                                ctx.request().host());
+                                ctx.response()
+                                                .setStatusCode(403)
+                                                .end("Access not allowed for this account");
                                 return;
                         }
 
@@ -122,8 +136,7 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
 
                         ctx.response().addCookie(cookie);
 
-                        // ✅ CRITICAL CHANGE:
-                        // Redirect to tool target (used by Caddy)
+                        // Redirect to tool target
                         String target = policy.target;
 
                         log.info(
@@ -151,19 +164,34 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
                 try {
                         DecodedJWT jwt = ToolHubSessionJwtProvider.verifySessionToken(sessionToken);
 
+                        String email = jwt.getClaim("email").asString();
+
                         JsonObject sessionClaims = new JsonObject()
                                         .put("sub", jwt.getSubject())
                                         .put("role", jwt.getClaim("role").asString())
-                                        .put("email", jwt.getClaim("email").asString());
+                                        .put("email", email);
 
                         ctx.put("authUser", sessionClaims);
 
+                        // 🔐 Role enforcement (existing)
                         if (!isRoleAllowed(policy, sessionClaims)) {
                                 ctx.response().setStatusCode(403).end("Forbidden");
                                 return;
                         }
 
-                        // ⭐ NEW: default landing redirect
+                        // 📧 Email allowlist enforcement (NEW)
+                        if (!policy.isEmailAllowed(email)) {
+                                log.warn(
+                                                "Session forbidden: email not allowed [email={}, host={}]",
+                                                email,
+                                                ctx.request().host());
+                                ctx.response()
+                                                .setStatusCode(403)
+                                                .end("Access not allowed for this account");
+                                return;
+                        }
+
+                        // ⭐ Default landing redirect
                         if ("/".equals(ctx.request().path())
                                         && isBrowserNavigation(ctx)) {
 

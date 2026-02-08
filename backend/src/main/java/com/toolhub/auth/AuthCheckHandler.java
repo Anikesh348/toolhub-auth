@@ -16,8 +16,8 @@ public class AuthCheckHandler implements Handler<RoutingContext> {
     @Override
     public void handle(RoutingContext ctx) {
         log.info("GET /internal/auth/check");
-        ToolPolicy policy = ctx.get("policy");
 
+        ToolPolicy policy = ctx.get("policy");
         if (policy == null) {
             log.error("AuthCheck called without resolved ToolPolicy");
             ctx.response().setStatusCode(403).end();
@@ -41,9 +41,11 @@ public class AuthCheckHandler implements Handler<RoutingContext> {
             return;
         }
 
-        // Optional role enforcement
+        String role = jwt.getClaim("role").asString();
+        String email = jwt.getClaim("email").asString();
+
+        // 1️⃣ Optional role enforcement
         if (policy.role != null) {
-            String role = jwt.getClaim("role").asString();
             if (role == null || !policy.role.equalsIgnoreCase(role)) {
                 log.error(
                         "AuthCheck forbidden: role mismatch [required={}, actual={}]",
@@ -52,6 +54,16 @@ public class AuthCheckHandler implements Handler<RoutingContext> {
                 ctx.response().setStatusCode(403).end();
                 return;
             }
+        }
+
+        // 2️⃣ Email allowlist enforcement (NEW)
+        if (!policy.isEmailAllowed(email)) {
+            log.warn(
+                    "AuthCheck forbidden: email not allowed [email={}, host={}]",
+                    email,
+                    ctx.request().host());
+            ctx.response().setStatusCode(403).end();
+            return;
         }
 
         // ✅ Auth OK
