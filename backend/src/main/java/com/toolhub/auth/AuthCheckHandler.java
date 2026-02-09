@@ -18,6 +18,14 @@ public class AuthCheckHandler implements Handler<RoutingContext> {
         log.info("GET /internal/auth/check");
 
         ToolPolicy policy = ctx.get("policy");
+
+        String path = ctx.request().path();
+
+        if (!policy.authRequired || policy.isPathAllowed(path) || policy.isHeaderAllowed(ctx.request())) {
+                ctx.next();
+                return;
+        }
+
         if (policy == null) {
             log.error("AuthCheck called without resolved ToolPolicy");
             ctx.response().setStatusCode(403).end();

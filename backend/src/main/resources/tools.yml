@@ -1,52 +1,42 @@
 tools:
-  dozzle:
-    host: logs.hostingfrompurva.xyz
-    target: /
+  jellyfin:
+    host: moviescloud.hostingfrompurva.xyz
+    target: /web/index.html
 
     auth:
       required: true
-      role: admin
 
-      # IMPORTANT: allow internal Dozzle calls
+      allowedEmails:
+        - anikeshthakur85@gmail.com
+
+      allowedHeaders:
+        - name: "Authorization"
+          contains: "MediaBrowser"
+        - name: "X-Emby-Authorization"
+          contains: "MediaBrowser"  
+
       allowPaths:
-        - /assets/*
+        # Static UI
+        - /web/*
+        - /css/*
+        - /fonts/*
+        - /images/*
         - /favicon.ico
-        - /api/*
-        - /api/events/stream
-        - /ws
-        - /sockjs/*
-        - /health
 
-  netdata:
-    host: metrics.hostingfrompurva.xyz
-    target: /
+        # Jellyfin bootstrap
+        - /System/Info/Public
+        - /System/Configuration
+        - /branding/*
 
-    auth:
-      required: true
-      role: admin
+        # Jellyfin login
+        - /Users/AuthenticateByName
+        - /Users/Public
 
-      allowPaths:
-        - /api/*
-        - /netdata/*
-        - /ws
+        - /Sessions/*
+        - /DisplayPreferences
+        - /System/*
+        - /Playback/*
 
-jellyfin:
-  host: moviescloud.hostingfrompurva.xyz
-  target: http://127.0.0.1:9001
 
-  auth:
-    required: true
-
-    allowedEmails:
-      - anikeshthakur85@gmail.com
-
-    allowPaths:
-      # Static UI assets
-      - /web/*
-      - /css/*
-      - /fonts/*
-      - /images/*
-      - /favicon.ico
-
-      # WebSocket bootstrap (still authenticated later)
-      - /socket
+        # WebSockets
+        - /socket
