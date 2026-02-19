@@ -29,3 +29,17 @@ tools:
         - /api/*
         - /netdata/*
         - /ws
+
+  filebrowser:
+    host: files.hostingfrompurva.xyz
+    target: /
+
+    auth:
+      required: true
+      role: admin
+    allowPaths:
+      - /assets/*
+      - /favicon.ico
+      - /api/*
+      - /ws
+      - /health
