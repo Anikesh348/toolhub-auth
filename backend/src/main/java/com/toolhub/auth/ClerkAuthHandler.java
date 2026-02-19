@@ -163,18 +163,7 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
                                 return;
                         }
 
-                        // ⭐ NEW: default landing redirect
-                        if ("/".equals(ctx.request().path())
-                                        && isBrowserNavigation(ctx)) {
-
-                                ctx.response()
-                                                .setStatusCode(302)
-                                                .putHeader("Location", policy.target)
-                                                .end();
-                                return;
-                        }
-
-                        ctx.next();
+                        ctx.response().setStatusCode(200).end();
 
                 } catch (Exception e) {
                         log.warn("Session JWT invalid or expired: {}", e.getMessage());
