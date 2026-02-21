@@ -43,3 +43,26 @@ tools:
       - /api/*
       - /ws
       - /health
+
+  jellyfin:
+    host: moviescloud.hostingfrompurva.xyz
+    target: /web/index.html
+
+    auth:
+      required: true
+      allowedEmails:
+        - anikeshthakur85@gmail.com
+
+      allowedHeaders:
+        - name: "Authorization"
+          contains: "MediaBrowser"
+        - name: "X-Emby-Authorization"
+          contains: "MediaBrowser"  
+
+      allowPaths:
+        # Static UI
+        - /web/*
+        - /css/*
+        - /fonts/*
+        - /images/*
+        - /favicon.ico    
