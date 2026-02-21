@@ -10,6 +10,7 @@ public class ToolPolicy {
 
     public boolean authRequired;
     public String role;
+    public List<String> allowedEmails;
 
     /**
      * Paths that are allowed once the user is authenticated.

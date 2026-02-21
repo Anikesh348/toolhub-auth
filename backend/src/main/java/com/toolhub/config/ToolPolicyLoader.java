@@ -58,8 +58,10 @@ public class ToolPolicyLoader {
 
                 p.authRequired = auth != null && Boolean.TRUE.equals(auth.get("required"));
                 p.role = auth != null ? (String) auth.get("role") : null;
+                p.allowedEmails = auth != null 
+                ? (auth.get("allowedEmails") != null ? (List<String>) auth.get("allowedEmails") : null )
+                : null;
 
-                // ✅ NEW: allowPaths support
                 if (auth != null && auth.containsKey("allowPaths")) {
                     p.allowPaths = (List<String>) auth.get("allowPaths");
                 } else {
@@ -69,13 +71,14 @@ public class ToolPolicyLoader {
                 policies.put(p.host, p);
 
                 log.info(
-                        "Loaded tool policy '{}' [host={}, target={}, authRequired={}, role={}, allowPaths={}]",
+                        "Loaded tool policy '{}' [host={}, target={}, authRequired={}, role={}, allowPaths={}, allowEmails={}]",
                         key,
                         p.host,
                         p.target,
                         p.authRequired,
                         p.role,
-                        p.allowPaths);
+                        p.allowPaths,
+                        p.allowedEmails);
             } catch (Exception e) {
                 log.error(
                         "Failed to load tool policy '{}' from tools.yml",

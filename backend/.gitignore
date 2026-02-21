@@ -45,3 +45,5 @@ bin/
 .env
 
 .idea/
+src/main/resources/tools.yml
+

@@ -158,7 +158,7 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
 
                         ctx.put("authUser", sessionClaims);
 
-                        if (!isRoleAllowed(policy, sessionClaims)) {
+                        if (!isRoleAllowed(policy, sessionClaims) || !isAllowedEmail(policy, sessionClaims)) {
                                 ctx.response().setStatusCode(403).end("Forbidden");
                                 return;
                         }
@@ -185,6 +185,20 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
                 String role = claims.getString("role");
                 return role != null &&
                                 policy.role.equalsIgnoreCase(role);
+        }
+
+        private boolean isAllowedEmail(ToolPolicy policy, JsonObject claims) {
+                if (policy.allowedEmails == null) {
+                        return true;
+                }
+                String email = claims.getString("email");
+                log.debug("logging the email id from claims: {}", email);
+                if (email != null && policy.allowedEmails.contains(email)) {
+                        log.debug("{}: is allowed, forwarding..." , email);
+                        return true;
+                }
+                log.debug("{}: is not allowed, forbidden");
+                return false;
         }
 
         private void handleUnauthenticated(RoutingContext ctx) {
