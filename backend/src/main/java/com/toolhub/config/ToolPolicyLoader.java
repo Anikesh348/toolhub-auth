@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class ToolPolicyLoader {
 
@@ -58,8 +59,10 @@ public class ToolPolicyLoader {
 
                 p.authRequired = auth != null && Boolean.TRUE.equals(auth.get("required"));
                 p.role = auth != null ? (String) auth.get("role") : null;
-
-                // ✅ NEW: allowPaths support
+                p.allowedEmails = auth != null 
+                ? (auth.get("allowedEmails") != null ? (Set<String>) auth.get("allowedEmails") : null )
+                : null;
+                
                 if (auth != null && auth.containsKey("allowPaths")) {
                     p.allowPaths = (List<String>) auth.get("allowPaths");
                 } else {
