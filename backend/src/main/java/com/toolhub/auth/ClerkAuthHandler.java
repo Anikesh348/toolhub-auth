@@ -192,10 +192,12 @@ public class ClerkAuthHandler implements Handler<RoutingContext> {
                         return true;
                 }
                 String email = claims.getString("email");
-                log.info("logging the email id from claims: {}", email);
+                log.debug("logging the email id from claims: {}", email);
                 if (email != null && policy.allowedEmails.contains(email)) {
                         log.debug("{}: is allowed, forwarding..." , email);
+                        return true;
                 }
+                log.debug("{}: is not allowed, forbidden");
                 return false;
         }
 

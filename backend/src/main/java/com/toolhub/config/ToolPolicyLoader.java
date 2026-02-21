@@ -71,13 +71,14 @@ public class ToolPolicyLoader {
                 policies.put(p.host, p);
 
                 log.info(
-                        "Loaded tool policy '{}' [host={}, target={}, authRequired={}, role={}, allowPaths={}]",
+                        "Loaded tool policy '{}' [host={}, target={}, authRequired={}, role={}, allowPaths={}, allowEmails={}]",
                         key,
                         p.host,
                         p.target,
                         p.authRequired,
                         p.role,
-                        p.allowPaths);
+                        p.allowPaths,
+                        p.allowedEmails);
             } catch (Exception e) {
                 log.error(
                         "Failed to load tool policy '{}' from tools.yml",
