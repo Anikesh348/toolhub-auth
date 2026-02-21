@@ -1,9 +1,7 @@
 package com.toolhub.config;
 
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 public class ToolPolicy {
 
@@ -12,7 +10,7 @@ public class ToolPolicy {
 
     public boolean authRequired;
     public String role;
-    public Set<String> allowedEmails = new HashSet<>();
+    public List<String> allowedEmails;
 
     /**
      * Paths that are allowed once the user is authenticated.
