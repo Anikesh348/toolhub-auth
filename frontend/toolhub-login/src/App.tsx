@@ -2,6 +2,7 @@ import { ClerkProvider, SignedIn, SignedOut } from "@clerk/clerk-react";
 import RedirectBack from "./RedirectBack";
 import LoginScreen from "./LoginScreen";
 import { useEffect, useState } from "react";
+import { styles } from "./LoginScreen.styles";
 
 const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISH_KEY;
 const REDIRECT_KEY = "sso_redirect_origin";
@@ -43,16 +44,26 @@ export default function App() {
 
 
   if (!CLERK_PUBLISHABLE_KEY) {
-    return <div>Clerk misconfigured</div>;
+    return (
+      <AccessState
+        title="Clerk misconfigured"
+        message="Authentication cannot start because the publishable key is missing."
+      />
+    );
   }
 
   // Prevent flicker while resolving validity
   if (isValidEntry === null) {
-    return <div>Loading…</div>;
+    return <AccessState title="Checking access" message="Preparing your secure sign-in." />;
   }
 
   if (!isValidEntry) {
-    return <div>You seem to be lost. Please access this page via a tool.</div>;
+    return (
+      <AccessState
+        title="Start from a tool"
+        message="Open ToolHub from one of your tools so SSO knows where to send you next."
+      />
+    );
   }
 
   return (
@@ -65,5 +76,18 @@ export default function App() {
         <RedirectBack />
       </SignedIn>
     </ClerkProvider>
+  );
+}
+
+function AccessState({ title, message }: { title: string; message: string }) {
+  return (
+    <div style={styles.container}>
+      <div style={styles.ambient} />
+      <section style={styles.statusCard}>
+        <img src="/tool_hub_logo_dark.png" alt="ToolHub" style={styles.statusLogo} />
+        <h1 style={styles.statusTitle}>{title}</h1>
+        <p style={styles.statusMessage}>{message}</p>
+      </section>
+    </div>
   );
 }
